@@ -30,10 +30,17 @@
 
 -record(state, {
     socket :: any(), %ranch_transport:socket(),
-    transport
+    transport,
+    uid,
+    operator,
+    username=""
 }).
 -type state() :: #state{}.
 
+-record(user, {
+	transport,
+	socket
+}).
 %% ------------------------------------------------------------------
 %% Macro Definitions
 %% ------------------------------------------------------------------
@@ -82,16 +89,21 @@ init(Ref, Socket, Transport, [_ProxyProtocol]) ->
     Opts = [{packet, 2}, {packet_size, 16384}, {active, once}, {nodelay, true}],
     _ = Transport:setopts(Socket, Opts),
 
-    State = {ok, #state{
+    State = #state{
         socket = Socket,
-        transport = Transport
-    }},
+        transport = Transport,
+        uid = generate()
+    },
 
     gen_server:enter_loop(?MODULE, [], State).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
+
+generate() ->
+    B = crypto:strong_rand_bytes(8),
+    base64:encode(B).
 
 %% This function is never called. We only define it so that
 %% we can use the -behaviour(gen_server) attribute.
@@ -102,19 +114,23 @@ handle_cast(Message, State) ->
     {noreply, State}.
 
 handle_info({tcp, _Port, <<>>}, State) ->
+	io:format("xkecazzo non ci entri~n"),
     _ = lager:notice("empty handle_info state: ~p", [State]),
     {noreply, State};
-handle_info({tcp, _Port, Packet}, State = {ok, #state{socket = Socket}}) ->
-    Req = utils:open_envelope(Packet),
-
-    State = process_packet(Req, State, utils:unix_timestamp()),
+    
+handle_info({tcp, _Port, Packet}, State = #state{socket = Socket}) ->
+    self() ! {packet, Packet},
     ok = inet:setopts(Socket, [{active, once}]),
-
     {noreply, State};
 handle_info({tcp_closed, _Port}, State) ->
     {stop, normal, State};
+handle_info({packet, Packet}, State) ->
+    Req = utils:open_envelope(Packet),
+    NewState = process_packet(Req, State, utils:unix_timestamp()),
+    {noreply, NewState};
+
 handle_info(Message, State) ->
-    _ = lager:notice("unknown handle_info ~p", [Message]),
+	_ = lager:notice("unknown handle_info ~p", [Message]),
     {noreply, State}.
 
 handle_call(Message, _From, State) ->
@@ -134,27 +150,81 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
-
+ 
 -spec process_packet(Req :: #req{}, State :: state(), Now :: integer()) -> NewState :: state().
 process_packet(undefined, State, _Now) ->
+
     _ = lager:notice("client sent invalid packet, ignoring ~p",[State]),
     State;
-process_packet(#req{ type = Type } = Req, State = {ok, #state{socket = Socket, transport = Transport}}, _Now)
-    when Type =:= create_session ->
-    #req{
-        create_session_data = #create_session {
-            username = UserName
-        }
-    } = Req,
-    _ = lager:info("create_session received from ~p", [UserName]),
+process_packet(#req{ type = Type } = Req, State = #state{}, _Now) ->
+    case handle_request(Type, Req, State) of
+        {noreply, NewState} -> NewState;
+        {Response, NewState} -> send(Response, NewState), NewState
+    end.
+    
+send(Response, #state{socket = Socket, transport = Transport}) ->
+	
+    	send(Response, Socket, Transport).
 
-    Response = #req{
+send(Response, Socket, Transport) ->
+    Data = utils:add_envelope(Response),
+    Transport:send(Socket, Data). 
+    
+%% ------------------------------------------------------------------
+%% Requests handling
+%% ------------------------------------------------------------------
+
+server_message(Msg) ->
+    #req{
         type = server_message,
         server_message_data = #server_message {
-            message = <<"OK">>
+            message = Msg
         }
-    },
-    Data = utils:add_envelope(Response),
-    Transport:send(Socket,Data),
+    }.
 
-    State.
+handle_request(create_session, #req{
+    create_session_data = #create_session {
+        username = UserName
+    }
+}, State) ->
+    NewState = State#state{username=UserName},
+    {server_message(io_lib:format("Welcome ~s!~n", [UserName])), NewState};
+        
+handle_request(call_id_req, _Req, #state{uid = UID} = State) ->
+    {server_message(
+        io_lib:format("-----------~n"
+                      "| Call ID |~n"
+                      "-----------~n"
+                      "~s~n", [UID])
+      ), State};
+
+
+handle_request(weather_req, _Req, State) ->
+    Timedates = [date:add_days(X) || X <- lists:seq(0, 6)],
+    Forecasts = [{Date, weather:for_date(Date)} || {Date, _} <- Timedates],
+    {server_message(build_forecasts_message(Forecasts)), State};
+
+handle_request(joke_req, _Req, State) ->
+    {server_message(build_joke_message(jokes:of_today())), State}.
+
+
+build_forecasts_message(Forecasts) ->
+    build_forecasts_message(Forecasts, "---------------------~n"
+                                       "| Weather forecasts |~n"
+                                       "---------------------~n").
+
+build_forecasts_message([], Msg) -> Msg ++ "~n";
+build_forecasts_message([{{Y, M, D}, Weather}|Tl], Msg) ->
+    build_forecasts_message(
+      Tl,
+      io_lib:format("~s- ~B/~B/~B will be ~p~n", [Msg, D, M, Y, Weather])
+    ).
+
+build_joke_message(Joke) ->
+    io_lib:format("-----------------~n"
+                  "| Joke of today |~n"
+                  "-----------------~n"
+                  "~s~n", [Joke]).
+
+
+
