@@ -29,8 +29,8 @@ message req {
     required type_enum type = 1;
     optional create_session create_session_data = 2;
     optional server_message server_message_data = 3;
-       optional operator_message operator_msg_data = 4;
-   
+    optional operator_message operator_msg_data = 4;
+     
 }
 
 message envelope {
