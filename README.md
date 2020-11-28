@@ -28,4 +28,8 @@ Google Protocol Buffer is automatically compiled starting from the included prot
 This is a playgrounf application that allows you to focus on the logic of your system, rather than the boring technical stuff. It includes a basic Erlang/OTP application structure with a TCP client and a TCP server.
 
 # Candidate comments
-Please add here everythig you need...
+
+- compile and launch the application typing ./rebar3 shell
+	if you get some strange errors delete the "_build" folder and launch above command again
+- in the shell type client:run(). to start the call center application
+- at now the "Ask an Operator" option is not working

@@ -9,7 +9,6 @@ services() ->
      #service{name = "Joke of the day", handler=fun handle_joke/0},
      #service{name = "My caller ID", handler=fun handle_caller_id/0},
      #service{name = "Ask an operator", handler=fun handle_ask_operator/0},
-     #service{name = "Chat with an user", handler=fun handle_chat/0},
      #service{name = "Quit", handler=fun () -> quit end}
     ].
 

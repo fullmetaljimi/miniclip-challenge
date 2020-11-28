@@ -114,7 +114,7 @@ handle_cast(Message, State) ->
     {noreply, State}.
 
 handle_info({tcp, _Port, <<>>}, State) ->
-	io:format("xkecazzo non ci entri~n"),
+	
     _ = lager:notice("empty handle_info state: ~p", [State]),
     {noreply, State};
     
@@ -205,6 +205,7 @@ handle_request(weather_req, _Req, State) ->
     {server_message(build_forecasts_message(Forecasts)), State};
 
 handle_request(joke_req, _Req, State) ->
+	
     {server_message(build_joke_message(jokes:of_today())), State}.
 
 
