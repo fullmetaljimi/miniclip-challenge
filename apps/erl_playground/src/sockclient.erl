@@ -9,7 +9,7 @@
 
 -export([start_link/0]). -ignore_xref([{start_link, 4}]).
 -export([connect/1, disconnect/0]).
--export([send_create_session/1, send_weather_req/0, send_call_id_req/0, send_joke_req/0, send_operator_req/0, send_operator_quit_req/0, send_operator_msg_req/1, send_chat_req/0, send_chat_quit_req/0, send_chat_msg_req/1]).
+-export([send_create_session/1, send_weather_req/0, send_call_id_req/0, send_joke_req/0, send_operator_req/0, send_operator_quit_req/0, send_operator_msg_req/1]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -107,30 +107,6 @@ send_operator_msg_req(Msg) ->
     },
     gen_server:cast(whereis(?SERVER), {send_msg, Req}).
 
--spec send_chat_req() -> ok.
-send_chat_req() ->
-    Req = #req {
-        type = chat_req
-    },
-    gen_server:cast(whereis(?SERVER), {send_msg, Req}).
-
--spec send_chat_quit_req() -> ok.
-send_chat_quit_req() ->
-    Req = #req {
-        type = chat_quit_req
-    },
-    gen_server:cast(whereis(?SERVER), {send_msg, Req}).
-
--spec send_chat_msg_req(_Msg) -> ok.
-send_chat_msg_req(Msg) ->
-    Req = #req {
-        type = chat_msg_req,
-        chat_msg_data = #chat_message {
-            message = Msg
-        }
-    },
-    gen_server:cast(whereis(?SERVER), {send_msg, Req}).
-
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -200,7 +176,6 @@ send(Req, Socket) ->
     
 -spec process_packet(Req :: #req{}, State :: state(), Now :: integer()) -> NewState :: state().
 process_packet(undefined, State, _Now) ->
-io:format("send serv.~n"),
     lager:notice("server sent invalid packet, ignoring"),
     State;
 process_packet(#req{ type = Type } = Req, #state{ref = Ref} = State, _Now)

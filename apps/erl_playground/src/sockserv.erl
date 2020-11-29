@@ -114,7 +114,7 @@ handle_cast(Message, State) ->
     {noreply, State}.
 
 handle_info({tcp, _Port, <<>>}, State) ->
-	io:format("xkecazzo non ci entri~n"),
+	
     _ = lager:notice("empty handle_info state: ~p", [State]),
     {noreply, State};
     
@@ -128,6 +128,11 @@ handle_info({packet, Packet}, State) ->
     Req = utils:open_envelope(Packet),
     NewState = process_packet(Req, State, utils:unix_timestamp()),
     {noreply, NewState};
+    
+handle_info({operator_removed, Ref}, #state{operator = Ref} = State) ->
+	send(server_message("[server] Your operator left the chat.~n"), State),
+    NewState = State#state{operator = undefined},
+	{noreply, NewState};
 
 handle_info(Message, State) ->
 	_ = lager:notice("unknown handle_info ~p", [Message]),
@@ -205,8 +210,45 @@ handle_request(weather_req, _Req, State) ->
     {server_message(build_forecasts_message(Forecasts)), State};
 
 handle_request(joke_req, _Req, State) ->
-    {server_message(build_joke_message(jokes:of_today())), State}.
+	
+    {server_message(build_joke_message(jokes:of_today())), State};
 
+handle_request(operator_req, _Req, State) ->
+	case operator_manager:take() of
+        {ok, Ref} ->
+            NewState = State#state{operator = Ref},
+            {server_message("[server] You are now connected to an operator.~n"), NewState};
+        {error, _} ->
+            {server_message("[server] No available operators at this time. Try again later~n"), State}
+    end;
+
+handle_request(operator_quit_req, _Req, #state{operator = undefined} = State) ->
+    {server_message("[server] Bye!~n"), State};
+
+handle_request(operator_quit_req, _Req, #state{operator = Operator} = State)
+  when Operator =/= undefined ->
+	operator_manager:put(Operator),
+    NewState = State#state{operator = undefined},
+    {server_message("[server] Bye!~n"), NewState};
+
+handle_request(operator_msg_req, _Req, #state{operator = undefined} = State) ->
+    {server_message("[server] You aren't connected to an operator.~n"), State};
+
+handle_request(operator_msg_req, #req{
+    operator_msg_data = #operator_message {
+        message = Message
+    }
+}, #state{operator = Operator} = State) ->
+    case operator_manager:ask(Operator, Message) of
+		{ok, Answer} ->
+			{server_message(build_operator_message(Answer)), State};
+		{error, _} ->
+			NewState = State#state{operator = undefined},
+			{server_message("[server] You can't ask more questions.~n"), NewState}
+	end.
+
+build_operator_message(Answer) ->
+    io_lib:format("[Operator]: ~p~n", [Answer]).
 
 build_forecasts_message(Forecasts) ->
     build_forecasts_message(Forecasts, "---------------------~n"
