@@ -32,7 +32,5 @@ This is a playgrounf application that allows you to focus on the logic of your s
 - compile and launch the application typing ./rebar3 shell
 	if you get some strange errors delete the "_build" folder and launch above command again
 - in the shell type client:run(). to start the call center application
-- at now the "Ask an Operator" option is not working
-
---------
--adding operator service
+----------
+-adding few tests, to execute them type ./rebar3 eunit
