@@ -3,4 +3,4 @@ _build/
 *.log
 
 /apps/erl_playground/src/erl_playground_pb.erl
-/apps/erl_playground/include/erl_playground_pb.hrl
+
